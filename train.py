@@ -16,7 +16,7 @@ def main():
     p.add_argument('--lr', type=float, default=0.001)
     p.add_argument('--seed', type=int, default=42)
     p.add_argument('--device', choices=['auto', 'mps', 'cpu'], default='auto')
-    p.add_argument('--output', default='checkpoints/latest.pt')
+    p.add_argument('--output', default='checkpoints/5x5.pt')
     p.add_argument('--resume', default=None)
     args = p.parse_args()
     if args.resume:

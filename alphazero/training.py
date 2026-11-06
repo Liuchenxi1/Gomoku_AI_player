@@ -111,3 +111,34 @@ def run_training(args):
                 f"Moves: {len(samples)}",
                 flush=True
             )
+        # Train the neural network using self-play data
+        policy_loss, value_loss = train_step(
+            model,
+            optimizer,
+            replay,
+            device,
+            batch_size=args.batch_size,
+            updates=args.updates,
+            rng=rng,
+        )
+
+        print(
+            f"Iteration {iteration} | "
+            f"Policy Loss: {policy_loss:.4f} | "
+            f"Value Loss: {value_loss:.4f}",
+            flush=True
+        )
+
+        # Save checkpoint after every iteration
+        save_checkpoint(
+            args.output,
+            model,
+            optimizer,
+            iteration=iteration,
+        )
+
+        print(
+            f"Checkpoint saved: {args.output} "
+            f"(Iteration {iteration})",
+            flush=True
+        )

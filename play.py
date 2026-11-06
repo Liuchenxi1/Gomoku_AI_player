@@ -6,7 +6,7 @@ from alphazero.mcts import MCTS
 
 def main():
     p = argparse.ArgumentParser()
-    p.add_argument('--model', default='checkpoints/latest.pt')
+    p.add_argument('--model', default='checkpoints/5x5.pt')
     p.add_argument('--simulations', type=int, default=100)
     p.add_argument('--human', choices=['black', 'white'], default='black')
     p.add_argument('--device', choices=['auto', 'mps', 'cpu'], default='auto')

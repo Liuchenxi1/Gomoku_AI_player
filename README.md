@@ -1,35 +1,40 @@
-> **New:** See [STRATEGY_AND_MAC_SETUP.md](STRATEGY_AND_MAC_SETUP.md) for one-command Mac environment setup and tactical strategy integration.
-
 # Gomoku-Zero
-Inspired by the google AlphaGo project **AlphaZero-style Gomoku AI** built with Python and PyTorch. The project includes a Gomoku environment, a policy/value neural network, Monte Carlo Tree Search (MCTS), self-play training, terminal play, and an optional Playwright adapter for playing on PaperGames.io.
 
-> **Project status:** This is a learning and experimentation project, it develops a self-learning rebot to play Gomuku game as like AlphaGo. The trained model currently is not very smart enough to win the online-bot. However it understands the board and rules of winning.
+**An AlphaZero-inspired Gomoku AI built with Python, PyTorch, and Monte Carlo Tree Search (MCTS).**
+
+Gomoku-Zero is a learning and experimentation project exploring how an agent can improve through self-play. It includes a Gomoku environment, a policy/value neural network, MCTS, checkpointed training, a terminal game, and an optional Playwright adapter for PaperGames.io.
+
+> **Project status:** Experimental. The AI can play Gomoku, but consistent performance against the online computer opponent has not yet been established. This is an AlphaZero-style implementation, not a reproduction of DeepMind's full AlphaZero system.
+>
+> **Mac setup:** See [STRATEGY_AND_MAC_SETUP.md](STRATEGY_AND_MAC_SETUP.md) for the project's additional macOS setup and tactical-strategy notes, if that file is present in your checkout.
+
 ## Features
 
-- **Gomoku environment:** board state, legal moves, turn handling, and five-in-a-row win detection.
-- **AlphaZero-style learning:** a convolutional policy/value network trained on self-play positions.
-- **MCTS:** uses the network's policy priors and value estimates to select moves.
-- **Self-play trainer:** configurable board size, model width/depth, search simulations, iterations, and training updates.
-- **Terminal gameplay:** play against a locally trained model.
-- **PaperGames.io adapter (`play_online.py`):** reads the board from the browser, waits for the opponent's moves, supports manual or automatic AI turns, checks immediate wins and single-point blocks, and prints the final board when it detects a result.
+- **Gomoku environment:** legal moves, turns, board state, and five-in-a-row detection.
+- **Policy/value network:** predicts move preferences and evaluates positions.
+- **Monte Carlo Tree Search:** uses network predictions to explore candidate moves.
+- **Self-play training:** configurable board size, model dimensions, MCTS simulations, self-play games, and optimizer updates.
+- **Model checkpoints:** save model weights and optimizer state; resume from an existing checkpoint.
+- **Local play:** challenge the trained model in the terminal.
+- **Optional online adapter:** use Playwright to play on PaperGames.io, with immediate-win and single-threat-block checks before MCTS moves.
 
 ## Requirements
 
-- Python 3.10 or newer recommended.
-- PyTorch and NumPy.
-- Playwright and its Chromium browser for online play.
-- On Apple Silicon Macs, PyTorch can use the MPS device when it is available. CPU mode is also supported.
+- Python 3.10 or newer (use a version supported by your installed PyTorch build).
+- PyTorch and NumPy (see `requirements.txt`).
+- Playwright and Chromium for browser-based play.
+- Optional: Apple Silicon with PyTorch MPS support. CPU is also supported.
 
 ## Installation
 
-Clone your repository and enter the project directory:
+Clone the repository (replace the placeholder with your repository URL):
 
 ```bash
 git clone <YOUR_GITHUB_REPOSITORY_URL>
 cd Gomoku-Zero
 ```
 
-Create and activate a virtual environment on macOS/Linux:
+Create a virtual environment and install dependencies:
 
 ```bash
 python3 -m venv .venv
@@ -38,26 +43,26 @@ python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
 ```
 
-To use the online browser adapter, install Playwright and Chromium:
+For PaperGames.io automation:
 
 ```bash
 python -m pip install playwright
 python -m playwright install chromium
 ```
 
-Check the PyTorch installation and whether MPS is available on your Mac:
+Check your PyTorch device:
 
 ```bash
 python -c "import torch; print('PyTorch:', torch.__version__); print('MPS available:', torch.backends.mps.is_available())"
 ```
 
-If your environment does not support MPS, use `--device cpu` for training or local play. For online play, the script's device option can also be set to `cpu`.
+Use `--device auto` to choose MPS when available or CPU otherwise. If necessary, use `--device cpu` explicitly.
 
 ## Train a model
 
-The training script starts with randomly initialized weights unless you provide a checkpoint to resume from. A larger search/training run can be computationally expensive, especially on a 15×15 board.
+Training starts from randomly initialized weights unless `--resume` points to an existing checkpoint. **Training a 15×15 model with 500 MCTS simulations per move can take substantial time.** The examples below assume the corrected `alphazero/training.py`, which trains and saves **after each iteration**, rather than just generating self-play games.
 
-Example: train a 15×15 checkpoint for use with the 15×15 PaperGames board:
+### Train a new 15×15 model
 
 ```bash
 python train.py \
@@ -70,113 +75,170 @@ python train.py \
   --updates 30 \
   --batch-size 64 \
   --device auto \
-  --output checkpoints/15x15_tactics.pt
+  --output checkpoints/15x15_latest.pt
 ```
 
-Adjust the number of simulations, games, and iterations to match your hardware and available time. A model trained on a different board size cannot be used as a drop-in replacement for a 15×15 checkpoint; the network's policy head depends on the board dimensions.
+An iteration should perform the following operations:
 
-To resume from a checkpoint:
+1. Generate 20 self-play games with the current model.
+2. Update the policy/value network using replay samples (`--updates 30`).
+3. Print policy and value losses.
+4. Save the current checkpoint, including its iteration number.
+
+**Check the logs for a loss report and `Checkpoint saved` message after every iteration.** A `Game 20/20 completed` message alone only confirms self-play completed; it does not prove that training or checkpoint saving occurred.
+
+### Resume training without overwriting your existing model
+
+To resume from a checkpoint and run **20 additional iterations**:
 
 ```bash
 python train.py \
-  --resume checkpoints/15x15_tactics.pt \
-  --output checkpoints/15x15_tactics.pt \
-  --device auto
+  --resume checkpoints/15x15_latest.pt \
+  --simulations 500 \
+  --games-per-iteration 20 \
+  --iterations 20 \
+  --updates 30 \
+  --batch-size 64 \
+  --device auto \
+  --output checkpoints/15x15_next.pt
 ```
 
-Resuming restores the model and optimizer state when available, but the replay buffer is not persisted between runs.
+`--iterations` specifies **additional** iterations, not the final absolute iteration number. For example, resuming from iteration 101 with `--iterations 20` runs iterations **102 through 121**.
+
+When resuming, the checkpoint determines the board size and neural-network architecture; `--size`, `--channels`, and `--blocks` are used when starting a new model. The model and optimizer state are restored when available, but **the replay buffer is not saved or restored**. Training therefore continues with an empty replay buffer that fills with newly generated self-play positions.
+
+To avoid losing an important model, write resumed training to a **different output path**. If you use the same output path, each checkpoint save overwrites the previous file. Keep a backup of valuable checkpoints before longer runs.
+
+### Verify a saved checkpoint
+
+```bash
+ls -lh checkpoints/
+```
+
+Inspect its metadata:
+
+```bash
+python - <<'PY'
+import torch
+
+path = 'checkpoints/15x15_latest.pt'
+ckpt = torch.load(path, map_location='cpu', weights_only=True)
+for key in ('board_size', 'channels', 'blocks', 'iteration'):
+    print(f'{key}: {ckpt.get(key)}')
+print('Has model weights:', 'model' in ckpt)
+PY
+```
+
+A model trained for 5×5 or 9×9 cannot be used as a drop-in replacement for a 15×15 checkpoint.
 
 ## Play locally in the terminal
 
-Use a checkpoint trained for the board size you want to play:
+Play against a trained checkpoint:
 
 ```bash
-python play.py --model checkpoints/15x15_tactics.pt --simulations 500
+python play.py --model checkpoints/15x15_latest.pt --simulations 500
 ```
 
-Choose the human's color and the device explicitly if needed:
+Choose your color and device:
 
 ```bash
 python play.py \
-  --model checkpoints/15x15_tactics.pt \
+  --model checkpoints/15x15_latest.pt \
   --simulations 500 \
   --human white \
   --device cpu
 ```
 
+If your checkpoint has a different filename, replace the value passed to `--model`.
+
 ## Play on PaperGames.io
 
-`play_online.py` is an optional browser automation script. It opens PaperGames.io in Chromium and uses Playwright to read the board and click the AI's selected cell.
+`play_online.py` uses Playwright to open a Chromium browser, read the online Gomoku board, and place the model's selected moves. Use it for supervised tests against the site's computer opponent; follow the site's rules and terms of use.
 
-1. Make sure you have a compatible **15×15 model checkpoint**. By default, the script looks for `checkpoints/15x15_tactics.pt`.
-2. Install Playwright and Chromium using the commands above.
-3. Run the script from the project root:
-
-   ```bash
-   python play_online.py
-   ```
-
-4. Join or start a Gomoku game in the opened browser, then press Enter in the terminal when prompted.
-5. The script attempts to detect the local player's color from the player panel. If it cannot, it asks whether the AI should play Black or White.
-6. By default, press Enter on each AI turn to calculate and place a move. To calculate automatically on every AI turn, use:
+1. Make sure you have a **15×15 checkpoint** and have installed Playwright and Chromium.
+2. Start the adapter with an **explicit checkpoint path**:
 
    ```bash
-   python play_online.py --auto
+   python play_online.py \
+     --model checkpoints/15x15_latest.pt \
+     --simulations 500 \
+     --device auto
    ```
 
-Useful options:
+3. In the opened browser, start or join a Gomoku game. When prompted, return to the terminal and press Enter.
+4. The adapter attempts to detect the AI's color; if it cannot, follow the terminal prompt.
+5. By default, confirm each AI move by pressing Enter. To let the adapter calculate moves automatically, add `--auto`:
 
-```bash
-python play_online.py --model checkpoints/15x15_tactics.pt --simulations 500 --device mps
-python play_online.py --model checkpoints/15x15_tactics.pt --simulations 500 --device cpu
-```
+   ```bash
+   python play_online.py \
+     --model checkpoints/15x15_latest.pt \
+     --simulations 500 \
+     --device auto \
+     --auto
+   ```
 
-The adapter prioritizes an immediate AI win, then blocks a single immediate opponent winning point, and otherwise uses MCTS. It cannot guarantee a win or defend against every multi-threat position. It relies on PaperGames.io's current DOM selectors and may need maintenance if the website changes. Please supervise online games and confirm that moves are accepted by the website.
+The adapter checks for an immediate winning move, then a single immediate opponent winning point, and otherwise uses MCTS. These checks do **not** guarantee tactical correctness, especially against multiple simultaneous threats. Browser selectors can change, so supervise games and confirm that moves are accepted. The adapter is optional and is not a measure of model strength by itself.
 
-When a win or draw is detected from the board, the script prints the result and final board, then closes the browser. If the script is interrupted or encounters an error, the browser is also closed by the current cleanup handler.
+> **Note:** Passing `--model` explicitly avoids reliance on any older default checkpoint filename that may still be hard-coded in `play_online.py`.
 
-## Tests
+## Evaluate model strength
 
-Run the unit tests from the repository root:
+Training loss alone is not enough to establish stronger play. Compare checkpoints through actual games, ideally alternating black/white and recording wins, losses, and draws.
+
+Suggested tests:
+
+- **Human vs. AI:** play locally and note tactical mistakes.
+- **Checkpoint vs. checkpoint:** compare a new model with an older baseline. An automated evaluation harness is a possible future addition; it is **not documented as implemented** here.
+- **Online computer bot:** run several supervised games and report the outcomes.
+
+Example results table (fill in only after testing):
+
+| Checkpoint | Opponent | Games | Wins | Draws | Losses |
+| --- | --- | ---: | ---: | ---: | ---: |
+| `15x15_latest.pt` | PaperGames.io computer bot | — | — | — | — |
+| `15x15_next.pt` | Previous checkpoint | — | — | — | — |
+
+## Run tests
 
 ```bash
 python -m unittest discover -s tests -v
 ```
 
-The online adapter requires an active browser session and is not covered by ordinary unit tests; verify it manually against the current website.
+The online adapter requires a live browser session and is not covered by ordinary unit tests. Verify it manually when the website changes.
 
 ## Project layout
 
 ```text
 Gomoku-Zero/
 ├── alphazero/
-│   ├── mcts.py            # Monte Carlo Tree Search
-│   ├── network.py         # Policy/value neural network
-│   └── training.py        # Self-play, updates, and checkpoints
+│   ├── mcts.py              # Monte Carlo Tree Search
+│   ├── network.py           # Policy/value network
+│   └── training.py          # Self-play, training, checkpoints
 ├── gomoku/
 │   ├── __init__.py
-│   └── environment.py     # Gomoku rules and game state
-├── tests/                 # Unit tests
-├── checkpoints/           # Local model files (not committed by default)
-├── main.py                # Original baseline entry point
-├── play.py                # Terminal human-vs-AI game
-├── play_online.py         # Optional PaperGames.io browser adapter
-├── train.py               # Training entry point
+│   └── environment.py       # Gomoku rules and state
+├── tests/
+├── checkpoints/             # Local checkpoints (not committed by default)
+├── main.py
+├── play.py                  # Human vs. AI in the terminal
+├── play_online.py           # Optional browser adapter
+├── train.py                 # Training command-line entry point
 ├── requirements.txt
 └── README.md
 ```
 
 ## Checkpoints and GitHub
 
-Model checkpoints are ignored by the repository's `.gitignore` (`checkpoints/*.pt`) because they can be large. A fresh clone will not automatically contain `checkpoints/15x15_tactics.pt`; train a compatible model locally or distribute the checkpoint separately if you want others to run the online adapter immediately.
+Checkpoint files may be excluded by `.gitignore` (for example, `checkpoints/*.pt`). Check your actual `.gitignore` before publishing. A fresh clone may not include a usable checkpoint; users will need to train one or obtain a separately distributed model.
 
-Do not commit your virtual environment, Python cache files, credentials, or other local-only artifacts.
+Do not commit local virtual environments, caches, credentials, or other private configuration files.
 
-## How the AlphaZero-style loop works
+## How AlphaZero-style learning works
 
-1. The network estimates a policy over board positions and a value for the current position.
-2. MCTS uses those estimates while exploring candidate moves.
-3. Self-play games generate move-policy targets and final outcomes.
-4. Training updates the policy head from the search targets and the value head from game results.
+1. The network predicts move probabilities (policy) and a position evaluation (value).
+2. MCTS uses those estimates to search for promising moves.
+3. Self-play games produce improved search-policy targets and final outcomes.
+4. Training adjusts the policy and value predictions based on those targets.
+5. The updated model generates the next batch of self-play games.
 
-This implementation is deliberately compact and is intended to support experimentation and learning rather than reproduce every optimization in DeepMind's original AlphaZero system.
+This project is a compact educational implementation intended for experimentation and further development.
