@@ -4,7 +4,7 @@
 
 Gomoku-Zero is a learning and experimentation project exploring how an agent can improve through self-play. It includes a Gomoku environment, a policy/value neural network, MCTS, checkpointed training, a terminal game, and an optional Playwright adapter for PaperGames.io.
 
-> **Project status:** Experimental. The AI can play Gomoku, but consistent performance against the online computer opponent has not yet been established. This is an AlphaZero-style implementation, not a reproduction of DeepMind's full AlphaZero system.
+> **Project status:** Experimental. The AI can play Gomoku, it is an AlphaZero-style implementation, not a reproduction of DeepMind's full AlphaZero system.
 >
 > **Mac setup:** See [STRATEGY_AND_MAC_SETUP.md](STRATEGY_AND_MAC_SETUP.md) for the project's additional macOS setup and tactical-strategy notes, if that file is present in your checkout.
 
