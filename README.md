@@ -242,3 +242,7 @@ Do not commit local virtual environments, caches, credentials, or other private 
 5. The updated model generates the next batch of self-play games.
 
 This project is a compact educational implementation intended for experimentation and further development.
+
+
+Here is the result:
+
