@@ -243,6 +243,26 @@ Do not commit local virtual environments, caches, credentials, or other private 
 
 This project is a compact educational implementation intended for experimentation and further development.
 
+## Gameplay Demonstration
 
-Here is the result:
+### AlphaZero vs. PaperGames Bot — First Victory
+
+https://github.com/user-attachments/assets/2c803de9-9898-4a29-8e54-d264447928fe
+
+Learning Outcomes and Limitations
+Observations
+
+* The AI successfully learned and executed winning patterns.
+
+* Repeated defensive decisions were observed against certain opponent strategies.
+
+* Opening position preferences and tactical decision-making remain areas for improvement.
+
+* Lower training losses do not necessarily guarantee stronger gameplay.
+
+## Imporvements
+
+1. Enriching the tactical strategies — improving how the AI recognizes threats, creates attacking opportunities, and avoids losing positions.
+2. Increasing training iterations — giving the neural network more self-play experience so it can learn better policies and position evaluations.
+
 
