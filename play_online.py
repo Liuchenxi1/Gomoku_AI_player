@@ -94,22 +94,26 @@ def find_winner(board, size):
     return next(iter(winners)) if winners else None
 
 
-def make_env(board, size):
-    """Build the model environment using standard Black-first Gomoku turns."""
+def make_env(board, size, first_player=1):
+    """Build a Gomoku environment for either Black-first or White-first play."""
     mapping = {"X": 1, "O": -1, ".": 0}
     env = GomokuEnv(size)
     env.board = np.asarray([mapping[cell] for cell in board], dtype=np.int8).reshape(size, size)
     black = int(np.count_nonzero(env.board == 1))
     white = int(np.count_nonzero(env.board == -1))
 
-    if black not in (white, white + 1):
+    if first_player not in (1, -1):
+        raise ValueError("first_player must be 1 (Black) or -1 (White)")
+    first_count = black if first_player == 1 else white
+    second_count = white if first_player == 1 else black
+    if first_count not in (second_count, second_count + 1):
         raise RuntimeError(
-            f"Unexpected stone counts: Black={black}, White={white}. "
-            "The game may not have started normally."
+            f"Unexpected stone counts for {'Black' if first_player == 1 else 'White'}-first game: "
+            f"Black={black}, White={white}. Check --first-player and the board."
         )
 
     env.move_count = black + white
-    env.current_player = 1 if black == white else -1
+    env.current_player = first_player if first_count == second_count else -first_player
     env.last_move = None
     env.winner = None
     env.terminated = False
@@ -178,6 +182,10 @@ def main():
     parser.add_argument("--simulations", type=int, default=500)
     parser.add_argument("--device", default="mps")
     parser.add_argument("--auto", action="store_true", help="Calculate without waiting for Enter on AI turns.")
+    parser.add_argument(
+        "--first-player", choices=("auto", "black", "white"), default="auto",
+        help="Stone color that moves first. Auto infers from existing stones; on an empty board it asks you.",
+    )
     args = parser.parse_args()
 
     model_path = Path(args.model)
@@ -218,10 +226,30 @@ def main():
                 ai_color = "Black" if ai_player == 1 else "White"
                 print(f"AI color: {ai_color}.")
 
+            # Color and opening turn are separate on PaperGames. Do not assume Black starts.
+            if args.first_player != "auto":
+                first_player = 1 if args.first_player == "black" else -1
+            else:
+                initial_black, initial_white = board.count("X"), board.count("O")
+                if initial_black > initial_white:
+                    first_player = 1
+                elif initial_white > initial_black:
+                    first_player = -1
+                else:
+                    # Equal counts are ambiguous: the opening color cannot be reliably
+                    # reconstructed from the board alone. Ask rather than guessing.
+                    print("Cannot infer opening color from equal stone counts.")
+                    first_input = input("Who moves first in this game? [B/W]: ").strip().upper()
+                    if first_input not in ("B", "W"):
+                        print("Cancelled. Use --first-player black or --first-player white.")
+                        return 1
+                    first_player = 1 if first_input == "B" else -1
+            print(f"Opening color: {'Black' if first_player == 1 else 'White'}; AI color: {ai_color}.")
+
             waiting = False
             while True:
                 board = read_board(page, size)
-                env, black, white = make_env(board, size)
+                env, black, white = make_env(board, size, first_player)
 
                 if env.terminated:
                     print_result(env)
@@ -249,7 +277,7 @@ def main():
                     if fresh_board != board:
                         continue
                     board = fresh_board
-                    env, black, white = make_env(board, size)
+                    env, black, white = make_env(board, size, first_player)
                     if env.terminated:
                         print_result(env)
                         print_board(board, size)
